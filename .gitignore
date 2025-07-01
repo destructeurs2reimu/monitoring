@@ -2,3 +2,4 @@ go.sum
 flake.lock
 result
 monitoring
+.env
