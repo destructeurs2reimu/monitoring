@@ -1,15 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"os"
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var s *discordgo.Session
+
+var db *sql.DB
 
 var commands = []*discordgo.ApplicationCommand{}
 var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){}
@@ -26,6 +30,15 @@ func init() {
 
 	token := os.Getenv("TOKEN")
 	s, err = discordgo.New("Bot " + token)
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func init() {
+	var err error
+
+	db, err = sql.Open("sqlite3", "monitoring.db")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -52,11 +65,30 @@ func commandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 }
 
 func main() {
-	err := s.Open()
+	var version string
+	err := db.QueryRow("SELECT SQLITE_VERSION()").Scan(&version)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Printf("Logged in as %s (%s)\n", s.State.User.DisplayName(), s.State.User.ID)
+	log.Printf("Using sqlite %s", version)
+
+	statement, err := db.Prepare(`
+		CREATE TABLE IF NOT EXISTS books (
+			server_id INT PRIMARY KEY,
+			date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			member_count INT
+		)
+	`)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	statement.Exec()
+
+	err = s.Open()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Printf("Logged in as %s <@%s>\n", s.State.User.DisplayName(), s.State.User.ID)
 
 	createCommands()
 	s.AddHandler(commandHandler)

@@ -2,4 +2,6 @@ go.sum
 flake.lock
 result
 monitoring
+monitoring.exe
 .env
+*.db
