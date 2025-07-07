@@ -5,11 +5,14 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/joho/godotenv"
 	"github.com/bwmarrin/discordgo"
+	"github.com/joho/godotenv"
 )
 
 var s *discordgo.Session
+
+var commands = []*discordgo.ApplicationCommand{}
+var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){}
 
 func init() {
 	err := godotenv.Load()
@@ -22,10 +25,30 @@ func init() {
 	var err error
 
 	token := os.Getenv("TOKEN")
-	s, err = discordgo.New(token)
+	s, err = discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func createCommands() (err error) {
+	for _, v := range commands {
+		_, err = s.ApplicationCommandCreate(s.State.User.ID, "", v)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func commandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	name := i.ApplicationCommandData().Name
+	h, ok := commandHandlers[name]
+	if !ok {
+		return
+	}
+
+	h(s, i)
 }
 
 func main() {
@@ -34,6 +57,9 @@ func main() {
 		log.Fatalln(err)
 	}
 	log.Printf("Logged in as %s (%s)\n", s.State.User.DisplayName(), s.State.User.ID)
+
+	createCommands()
+	s.AddHandler(commandHandler)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
